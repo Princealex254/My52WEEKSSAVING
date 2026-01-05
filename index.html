@@ -177,15 +177,36 @@
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
             .sidebar.active { transform: translateX(0); }
-            .main-content { margin-left: 0; width: 100%; }
+            .main-content { margin-left: 0; width: 100%; padding: 15px; }
+            .top-bar { margin: -15px -15px 20px -15px; padding: 15px; }
             .mobile-toggle { display: block; }
-            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 15px; }
         }
 
         @media (max-width: 480px) {
-            .stats-grid { grid-template-columns: 1fr; }
+            .page-title { font-size: 1.2rem; }
+            
+            /* Compact Stats */
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .stat-card { padding: 15px; }
+            .stat-value { font-size: 1.2rem; }
+            .stat-label { font-size: 0.7rem; }
+
             .controls-card { padding: 15px; }
-            .action-grid { grid-template-columns: 1fr; }
+            
+            /* Action Card Optimization */
+            .action-card { padding: 20px; }
+            .action-header { flex-direction: column; gap: 5px; align-items: flex-start; }
+            .action-header div { text-align: left !important; }
+            .action-grid { grid-template-columns: 1fr 1fr; gap: 15px; }
+            .action-grid > div:last-child { grid-column: span 2; margin-top: 5px; }
+            
+            .action-input-row { flex-direction: column; padding: 15px; background: rgba(255,255,255,0.2); }
+            .action-input-row input { width: 100%; max-width: none; height: 50px; background: white !important; color: #333 !important; padding-left: 15px; font-size: 1.1rem; }
+            .action-input-row button { width: 100%; margin-top: 10px; height: 50px; font-size: 1rem; }
+            
+            .quick-actions { overflow-x: auto; padding-bottom: 5px; flex-wrap: nowrap; }
+            .btn-quick { white-space: nowrap; }
         }
 
         /* --- Print Styles --- */
@@ -561,8 +582,7 @@
             </div>
 
             <div style="background-color: #fff3cd; color: #856404; padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #ffeeba; line-height: 1.4; text-align: left;">
-                <strong>Disclaimer:</strong> This platform is a tracking tool only and does not collect or hold any funds. Please save your money through your personal bank, mobile wallet, or other preferred method.
-            </div>
+                <strong>
 
             <div class="auth-header">
                 <h2 id="formTitle">Welcome Back</h2>
