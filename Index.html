@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>52 Weeks Saving Tracker</title>
+    <style>
+        :root {
+            --primary: #008f51; /* Kenya Green */
+            --secondary: #000000; /* Kenya Black */
+            --accent: #922529; /* Kenya Red */
+            --bg: #f0f2f5;
+            --sidebar-bg: #1e1e2d;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-muted: #6c757d;
+            --border: #e0e0e0;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg); color: var(--text-main); display: flex; min-height: 100vh; }
+
+        /* --- Sidebar --- */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center; }
+        .sidebar-header h2 { font-size: 1.2rem; font-weight: 700; letter-spacing: 1px; }
+        .sidebar-header span { color: var(--primary); }
+        
+        .nav-menu { list-style: none; padding: 20px 10px; flex: 1; }
+        .nav-item { margin-bottom: 5px; }
+        .nav-link {
+            display: flex; align-items: center; padding: 12px 15px;
+            color: #a6a6b7; text-decoration: none; border-radius: 6px;
+            transition: all 0.2s; cursor: pointer;
+        }
+        .nav-link:hover, .nav-link.active { background-color: var(--primary); color: white; }
+        .nav-icon { margin-right: 10px; width: 20px; text-align: center; }
+
+        .print-btn-container { padding: 20px; }
+        .btn-print {
+            width: 100%; padding: 12px; background: var(--accent); color: white;
+            border: none; border-radius: 6px; cursor: pointer; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-print:hover { opacity: 0.9; }
+
+        /* --- Main Content --- */
+        .main-content {
+            flex: 1; margin-left: 260px; padding: 30px;
+            width: calc(100% - 260px); transition: margin 0.3s ease, width 0.3s ease;
+        }
+
+        /* Header & Mobile Toggle */
+        .top-bar { 
+            display: flex; justify-content: space-between; align-items: center; 
+            position: sticky; top: 0; z-index: 90;
+            background-color: var(--bg);
+            margin: -30px -30px 30px -30px; padding: 20px 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        .mobile-toggle { display: none; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-main); }
+        .page-title { font-size: 1.5rem; font-weight: 700; }
+
+        /* --- Controls Section --- */
+        .controls-card {
+            background: var(--card-bg); padding: 25px; border-radius: 12px;
+            box-shadow: var(--shadow); margin-bottom: 30px;
+        }
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        
+        .control-group label { display: block; font-weight: 600; margin-bottom: 10px; color: var(--text-muted); font-size: 0.9rem; }
+        
+        /* Increment Toggles */
+        .increment-selector { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .inc-btn {
+            padding: 8px 16px; border: 1px solid var(--border); background: white;
+            border-radius: 20px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s;
+        }
+        .inc-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .inc-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        
+        .custom-input-group { display: flex; align-items: center; gap: 10px; }
+        .form-input {
+            padding: 10px; border: 1px solid var(--border); border-radius: 6px;
+            font-size: 1rem; width: 100%; max-width: 200px;
+        }
+        .form-input:focus { outline: none; border-color: var(--primary); }
+
+        /* --- Dashboard Cards --- */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px; margin-bottom: 30px;
+        }
+        .stat-card {
+            background: var(--card-bg); padding: 20px; border-radius: 12px;
+            box-shadow: var(--shadow); border-left: 4px solid var(--primary);
+        }
+        .stat-card.accent { border-left-color: var(--accent); }
+        .stat-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-size: 1.8rem; font-weight: 700; color: var(--secondary); }
+        
+        /* --- Action Card --- */
+        .action-card { background: linear-gradient(135deg, var(--primary), #00683b); color: white; padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 20px rgba(0, 143, 81, 0.2); }
+        .action-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .action-input-row { display: flex; gap: 10px; align-items: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; }
+        
+        /* --- Status Message --- */
+        .status-message {
+            padding: 15px; border-radius: 8px; margin-bottom: 20px;
+            display: flex; align-items: flex-start; gap: 12px;
+            background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .status-message.success { background: rgba(255, 255, 255, 0.25); border-color: rgba(255, 255, 255, 0.5); }
+        .status-message.warning { background: rgba(255, 80, 80, 0.2); border-color: rgba(255, 80, 80, 0.3); }
+        .status-icon { font-size: 1.2rem; line-height: 1; margin-top: 2px; }
+        .status-text strong { display: block; margin-bottom: 2px; font-size: 1rem; }
+        .status-text span { font-size: 0.85rem; opacity: 0.9; }
+
+        /* --- Quick Actions --- */
+        .quick-actions { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .btn-quick { 
+            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); 
+            color: white; padding: 6px 12px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s;
+        }
+        .btn-quick:hover { background: rgba(255,255,255,0.25); transform: translateY(-1px); }
+
+        /* --- Progress Bar --- */
+        .progress-section { margin-bottom: 30px; }
+        .progress-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 600; }
+        .progress-track {
+            background: #e9ecef; height: 24px; border-radius: 12px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, var(--primary), #00b869);
+            width: 0%; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 0.75rem; font-weight: bold;
+        }
+
+        /* --- Tracker Table --- */
+        .table-card {
+            background: var(--card-bg); border-radius: 12px; box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .table-responsive { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f8f9fa; padding: 15px; text-align: left; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid var(--border); }
+        td { padding: 15px; border-bottom: 1px solid var(--border); color: var(--text-main); }
+        
+        /* Paid Row Styling */
+        tr.status-paid { background-color: rgba(0, 143, 81, 0.08); }
+        tr.status-paid td { color: var(--primary); }
+        tr.status-partial { background-color: rgba(255, 193, 7, 0.1); }
+        tr.current-week { outline: 2px solid var(--primary); }
+        tr.overdue { background: rgba(255,0,0,0.05); }
+        
+        .amount-positive { color: var(--primary); font-weight: bold; }
+        .amount-negative { color: var(--accent); font-weight: bold; }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 992px) {
+            .controls-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.active { transform: translateX(0); }
+            .main-content { margin-left: 0; width: 100%; }
+            .mobile-toggle { display: block; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .controls-card { padding: 15px; }
+            .action-grid { grid-template-columns: 1fr; }
+        }
+
+        /* --- Print Styles --- */
+        @media print {
+            @page { margin: 1cm; size: A4; }
+            body { background: white; display: block; }
+            .sidebar, .mobile-toggle, .controls-card, .btn-print, .no-print { display: none !important; }
+            .main-content { margin: 0; width: 100%; padding: 0; }
+            .top-bar { position: static; margin: 0 0 20px 0; padding: 0; box-shadow: none; }
+            .stat-card { border: 1px solid #ccc; box-shadow: none; break-inside: avoid; }
+            .table-card { box-shadow: none; }
+            th { background-color: #eee !important; -webkit-print-color-adjust: exact; }
+            tr.paid { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; }
+            .progress-track { border: 1px solid #ccc; }
+            .progress-fill { background: #999 !important; -webkit-print-color-adjust: exact; }
+        }
+
+        /* --- View Management --- */
+        .view-section { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- Auth Overlay --- */
+        .auth-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+            z-index: 2000; display: flex; align-items: center; justify-content: center;
+        }
+        .auth-overlay.hidden { display: none; }
+        .auth-card {
+            background: white; padding: 30px; border-radius: 12px;
+            width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            max-height: 90vh; overflow-y: auto;
+        }
+        .auth-header { text-align: center; margin-bottom: 20px; }
+        .auth-header h2 { color: var(--primary); margin-bottom: 5px; }
+        .full-width { width: 100%; }
+        .btn-primary {
+            background: var(--primary); color: white; border: none; padding: 12px;
+            border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 10px;
+            font-size: 1rem;
+        }
+        .btn-google {
+            background: white; color: #333; border: 1px solid #ccc; padding: 12px;
+            border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 10px;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .divider { text-align: center; margin: 20px 0; position: relative; }
+        .divider::before {
+            content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: #eee;
+        }
+        .divider span { background: white; padding: 0 10px; position: relative; color: #777; font-size: 0.8rem; }
+        .auth-footer { text-align: center; margin-top: 20px; font-size: 0.9rem; }
+        .auth-footer a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .error-text { color: var(--accent); text-align: center; margin-top: 10px; font-size: 0.9rem; }
+        .hidden { display: none !important; }
+
+        /* --- Enhanced Auth Form --- */
+        .auth-form .control-group { margin-bottom: 20px; }
+        .auth-form label { margin-bottom: 8px; display: block; color: #444; font-weight: 600; font-size: 0.95rem; }
+        .auth-form .form-input { 
+            background-color: #f8f9fa; border-color: #e2e8f0; padding: 12px 15px; transition: all 0.2s; border-radius: 8px;
+        }
+        .auth-form .form-input:focus { background-color: #fff; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(0, 143, 81, 0.1); }
+
+        /* Password Toggle */
+        .password-wrapper { position: relative; }
+        .password-wrapper .form-input { padding-right: 45px; }
+        .password-toggle {
+            position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #777;
+            padding: 0; outline: none;
+        }
+
+        /* --- Chat Interface --- */
+        .chat-window {
+            display: flex; flex-direction: column; 
+            height: calc(100vh - 140px); min-height: 500px;
+            background: white; border-radius: 12px; 
+            box-shadow: var(--shadow); overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .chat-header {
+            padding: 15px 20px; background: var(--sidebar-bg); color: white;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header-info h3 { font-size: 1rem; margin-bottom: 4px; font-weight: 600; }
+        .status-badge { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; opacity: 0.8; }
+        .status-dot { width: 8px; height: 8px; background: #6c757d; border-radius: 50%; display: inline-block; }
+        .status-dot.online { background: #28a745; box-shadow: 0 0 4px #28a745; }
+        
+        .chat-messages {
+            flex: 1; padding: 20px; overflow-y: auto; background: #f5f7fb;
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        
+        .message-wrapper { display: flex; flex-direction: column; max-width: 80%; }
+        .message-wrapper.user { align-self: flex-end; align-items: flex-end; }
+        .message-wrapper.admin { align-self: flex-start; align-items: flex-start; }
+        
+        .message-bubble {
+            padding: 12px 16px; border-radius: 12px; font-size: 0.95rem; line-height: 1.5;
+            position: relative; word-wrap: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .message-wrapper.user .message-bubble {
+            background: var(--primary); color: white;
+            border-bottom-right-radius: 2px;
+        }
+        .message-wrapper.admin .message-bubble {
+            background: white; color: var(--text-main); 
+            border-bottom-left-radius: 2px;
+        }
+        
+        .msg-timestamp { font-size: 0.7rem; color: #999; margin-top: 4px; padding: 0 4px; }
+        
+        .chat-input-area {
+            padding: 15px; background: white; border-top: 1px solid var(--border);
+            display: flex; gap: 10px; align-items: center; position: relative;
+        }
+        .typing-indicator {
+            position: absolute; top: -30px; left: 20px; font-size: 0.75rem; color: #666;
+            background: rgba(255,255,255,0.9); padding: 4px 10px; border-radius: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .empty-state { 
+            text-align: center; color: #999; margin-top: 40px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;
+        }
+        .empty-state h4 { margin-bottom: 10px; color: var(--text-main); }
+
+        @media (max-width: 768px) {
+            .chat-window { height: calc(100vh - 160px); }
+            .message-wrapper { max-width: 90%; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>My 52 WEEKS <span>SAVING</span></h2>
+            <p style="font-size: 0.8rem; opacity: 0.7; margin-top: 5px;">Tracker</p>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="#" class="nav-link active" onclick="switchView('dashboard', this)"><span class="nav-icon">📊</span> Dashboard</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" onclick="switchView('tracker', this)"><span class="nav-icon">📅</span> Weekly Tracker</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" onclick="switchView('settings', this)"><span class="nav-icon">⚙️</span> Challenge Settings</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" onclick="switchView('chat', this)"><span class="nav-icon">💬</span> Chat Support</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" onclick="switchView('guide', this)"><span class="nav-icon">📚</span> User Guide</a></li>
+            <li class="nav-item"><a href="#" class="nav-link" id="logoutBtn"><span class="nav-icon">🚪</span> Logout</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="top-bar">
+            <button class="mobile-toggle" id="menuToggle">☰</button>
+            <h1 class="page-title">My Savings Dashboard</h1>
+            <div style="width: 24px;"></div> <!-- Spacer for balance -->
+        </div>
+
+        <!-- VIEW: DASHBOARD -->
+        <div id="view-dashboard" class="view-section">
+            
+            <!-- Active Goal Action Card -->
+            <section class="action-card" id="actionCard">
+                <div class="action-header">
+                    <div>
+                        <h2 style="font-size: 1.4rem; margin-bottom: 5px;">Current Savings Goal</h2>
+                        <p style="opacity: 0.9;" id="activeWeekLabel">Week 1</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 0.8rem; opacity: 0.8;">DUE DATE</div>
+                        <div style="font-weight: 600;" id="activeWeekDate">...</div>
+                    </div>
+                </div>
+                <div id="actionStatus" class="status-message" style="display:none;"></div>
+                <div class="action-grid">
+                    <div><div style="font-size: 0.8rem; opacity: 0.8;">TARGET</div><div style="font-size: 1.5rem; font-weight: 700;" id="activeTarget">...</div></div>
+                    <div><div style="font-size: 0.8rem; opacity: 0.8;">ROLLOVER</div><div style="font-size: 1.5rem; font-weight: 700;" id="activeRollover">...</div></div>
+                    <div><div style="font-size: 0.8rem; opacity: 0.8;">NET NEEDED</div><div style="font-size: 1.5rem; font-weight: 700; color: #fff;" id="activeNet">...</div></div>
+                </div>
+                <div class="quick-actions">
+                    <button class="btn-quick" onclick="fillAmount('exact')">+ Exact Amount</button>
+                    <button class="btn-quick" onclick="fillAmount('half')">+ Half</button>
+                    <button class="btn-quick" onclick="fillAmount('double')">+ Double</button>
+                </div>
+                <div class="action-input-row">
+                    <input type="number" id="paymentInput" class="form-input" placeholder="Enter amount saved" style="border: none; flex: 1;">
+                    <button class="btn-primary" style="margin: 0; background: white; color: var(--primary);" onclick="saveCurrentPayment()">Save Transaction</button>
+                </div>
+            </section>
+
+            <!-- Overview Cards -->
+            <section class="stats-grid">
+                <div class="stat-card" style="border-left-color: #6610f2;">
+                    <div class="stat-label">My Personal Goal</div>
+                    <div class="stat-value" id="dispPersonalGoal">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Weekly Increase</div>
+                    <div class="stat-value" id="dispIncrement">KSh 50</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Target Total (Week 52)</div>
+                    <div class="stat-value" id="dispTarget">KSh 68,900</div>
+                </div>
+                <div class="stat-card accent">
+                    <div class="stat-label">Total Saved So Far</div>
+                    <div class="stat-value" id="dispSaved" style="color: var(--primary);">KSh 0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Weeks Completed</div>
+                    <div class="stat-value" id="dispWeeks">0 / 52</div>
+                </div>
+            </section>
+
+            <!-- Progress Bar -->
+            <section class="progress-section">
+                <div class="progress-header">
+                    <span>Progress</span>
+                    <span id="progressText">0%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- VIEW: TRACKER -->
+        <div id="view-tracker" class="view-section" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: var(--primary); font-size: 1.5rem;">Weekly Tracker</h2>
+                <button class="btn-primary" onclick="exportPDF(this)" style="width: auto; margin: 0; background: #333; display: flex; align-items: center; gap: 8px;">
+                    <span>📄</span> Download PDF
+                </button>
+            </div>
+            <section class="table-card">
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">Week</th>
+                                <th>Date Range</th>
+                                <th>Target (Net)</th>
+                                <th>Paid</th>
+                                <th>Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Generated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- VIEW: SETTINGS -->
+        <div id="view-settings" class="view-section" style="display: none;">
+            <section class="controls-card no-print">
+                <h3 style="margin-bottom: 20px; color: var(--primary);">Challenge Settings</h3>
+                <div class="controls-grid">
+                    <div class="control-group">
+                        <label>Weekly Increment (KSh)</label>
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <select id="incrementDropdown" class="form-input" style="flex: 1; cursor: pointer;"></select>
+                            <button class="btn-primary" style="margin: 0; width: auto; padding: 0 20px;" onclick="saveDropdownIncrement()">Save</button>
+                        </div>
+                        <div class="custom-input-group">
+                            <span>Custom:</span>
+                            <input type="number" id="customIncrement" class="form-input" placeholder="Enter amount" min="1">
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label>Start Date</label>
+                        <input type="date" id="startDate" class="form-input">
+                        <p style="margin-top: 10px; font-size: 0.85rem; color: var(--text-muted);">
+                            Changing the increment recalculates totals but keeps your "Paid" status for completed weeks.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="controls-card no-print" style="margin-top: 20px;">
+                <h3 style="margin-bottom: 20px; color: var(--primary);">My Profile</h3>
+                <div class="controls-grid">
+                    <div class="control-group">
+                        <label>Full Name</label>
+                        <input type="text" id="profileName" class="form-input" readonly style="background: #f9f9f9;">
+                    </div>
+                    <div class="control-group">
+                        <label>Yearly Goal</label>
+                        <input type="text" id="profileGoal" class="form-input" readonly style="background: #f9f9f9;">
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- VIEW: CHAT -->
+        <div id="view-chat" class="view-section" style="display: none;">
+            <div class="chat-window">
+                <div class="chat-header">
+                    <div class="header-info">
+                        <h3>Support Chat</h3>
+                        <div class="status-badge">
+                            <span class="status-dot" id="chatStatusDot"></span>
+                            <span id="chatStatusText">Connecting to admin support...</span>
+                        </div>
+                    </div>
+                    <div class="chat-agent" id="chatAgentName">Apollo Support Team</div>
+                </div>
+                <div id="chatMessages" class="chat-messages"></div>
+                <div class="chat-input-area">
+                    <div id="adminTypingIndicator" class="typing-indicator" style="display:none;">Admin is typing...</div>
+                    <input type="text" id="chatInput" class="form-input" placeholder="Type your message here..." style="flex: 1; margin: 0;">
+                    <button class="btn-primary" id="chatSendBtn" style="margin: 0; width: auto;" onclick="sendChatMessage()" disabled>Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: GUIDE -->
+        <div id="view-guide" class="view-section" style="display: none;">
+            <section class="controls-card">
+                <h3 style="margin-bottom: 20px; color: var(--primary);">User Guide & FAQ</h3>
+                
+                <div style="margin-bottom: 30px;">
+                    <h4 style="color: var(--text-main); margin-bottom: 10px;">1. Dashboard Overview</h4>
+                    <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 15px;">
+                        The dashboard is your main control center. Here you can see your <strong>Current Savings Goal</strong> for the active week, your total progress, and key statistics.
+                    </p>
+                    <ul style="margin-left: 20px; color: var(--text-muted); line-height: 1.6;">
+                        <li><strong>Weekly Increase:</strong> The amount added to your target each week (e.g., Week 1 = 50, Week 2 = 100).</li>
+                        <li><strong>Target Total:</strong> The total amount you will have saved by Week 52.</li>
+                        <li><strong>Rollover:</strong> Any extra amount you saved in previous weeks carries over to help reduce the current week's target.</li>
+                    </ul>
+                </div>
+
+                <div style="margin-bottom: 30px;">
+                    <h4 style="color: var(--text-main); margin-bottom: 10px;">2. How to Save</h4>
+                    <p style="color: var(--text-muted); line-height: 1.6; margin-bottom: 15px;">
+                        Use the green <strong>Action Card</strong> at the top of the dashboard to record your savings.
+                    </p>
+                    <ul style="margin-left: 20px; color: var(--text-muted); line-height: 1.6;">
+                        <li>Check the <strong>Net Needed</strong> amount for the current week.</li>
+                        <li>Enter the amount you have saved in the input box.</li>
+                        <li>Click <strong>Save Transaction</strong>.</li>
+                        <li>You can also use the "Quick Actions" buttons (+ Exact, + Half) for faster entry.</li>
+                    </ul>
+                </div>
+
+                <div style="margin-bottom: 30px;">
+                    <h4 style="color: var(--text-main); margin-bottom: 10px;">3. Weekly Tracker & Settings</h4>
+                    <p style="color: var(--text-muted); line-height: 1.6;">
+                        Navigate to the <strong>Weekly Tracker</strong> tab to see a full list of all 52 weeks, check which are paid, and download a PDF report.<br><br>
+                        In <strong>Challenge Settings</strong>, you can adjust your Weekly Increment or Start Date. Changing these will recalculate your targets for the entire year.
+                    </p>
+                </div>
+            </section>
+        </div>
+
+        <footer style="text-align: center; margin-top: 40px; padding: 20px; color: var(--text-muted); font-size: 0.85rem; border-top: 1px solid var(--border);">
+            Designed by <a href="https://www.princealex.pro" target="_blank" style="color: var(--primary); text-decoration: none;">Prince Alex Digital</a>
+        </footer>
+    </main>
+
+    <!-- Auth Overlay -->
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h2 id="formTitle">Welcome Back</h2>
+                <p>Sign in to track your savings</p>
+            </div>
+            
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form">
+                <div class="control-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" required class="form-input" style="width: 100%; max-width: 100%;">
+                </div>
+                <div class="control-group">
+                    <label>Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="loginPassword" required class="form-input" style="width: 100%; max-width: 100%;">
+                        <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)">👁️</button>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary full-width">Log In</button>
+            </form>
+
+            <!-- Register Form (Hidden by default) -->
+            <form id="registerForm" class="auth-form hidden">
+                <div class="control-group">
+                    <label>Full Name</label>
+                    <input type="text" id="regName" required class="form-input" style="width: 100%; max-width: 100%;" placeholder="Prince Alex">
+                </div>
+                <div class="control-group">
+                    <label>Email</label>
+                    <input type="email" id="regEmail" required class="form-input" style="width: 100%; max-width: 100%;" placeholder="john@example.com">
+                </div>
+                <div class="control-group">
+                    <label>Phone Number (Optional)</label>
+                    <input type="tel" id="regPhone" class="form-input" style="width: 100%; max-width: 100%;" placeholder="0712 345 678">
+                </div>
+                <div class="control-group">
+                    <label>Yearly Savings Goal (KSh)</label>
+                    <input type="number" id="regGoal" class="form-input" style="width: 100%; max-width: 100%;" placeholder="e.g. 100000">
+                </div>
+                <div class="control-group">
+                    <label>Weekly Increment Amount (KSh)</label>
+                    <input type="number" id="regIncrement" class="form-input" style="width: 100%; max-width: 100%;" placeholder="e.g. 50" value="50">
+                </div>
+                <div class="control-group">
+                    <label>Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="regPassword" required class="form-input" style="width: 100%; max-width: 100%;" placeholder="Min 6 chars" minlength="6">
+                        <button type="button" class="password-toggle" onclick="togglePassword('regPassword', this)">👁️</button>
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary full-width">Register</button>
+            </form>
+
+            <div class="divider"><span>OR</span></div>
+
+            <button id="googleBtn" class="btn-google full-width">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" alt="G"> Sign in with Google
+            </button>
+
+            <div class="auth-footer">
+                <p id="toggleAuthText">Don't have an account? <a href="#" id="toggleAuthBtn">Register</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Overlay -->
+    <div id="messageOverlay" class="auth-overlay hidden" style="z-index: 2100;">
+        <div class="auth-card message-card">
+            <div id="msgIcon" class="message-icon"></div>
+            <h3 id="msgTitle" style="margin-bottom: 10px; color: var(--text-main);"></h3>
+            <p id="msgBody" style="color: var(--text-muted); margin-bottom: 25px; line-height: 1.5; font-size: 0.95rem;"></p>
+            <div style="display: flex; gap: 10px;">
+                <button id="msgCancelBtn" class="btn-primary" style="flex: 1; background: #e0e0e0; color: #333; display: none;">Cancel</button>
+                <button id="msgBtn" class="btn-primary" style="flex: 1;">Okay</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, addDoc, onSnapshot, enableIndexedDbPersistence, updateDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            signInWithPopup, 
+            GoogleAuthProvider, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword,
+            signOut 
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDGErPBeQ1Fdx9EHPXOHepoEoOx7P2f57o",
+            authDomain: "princealextravel.firebaseapp.com",
+            projectId: "princealextravel",
+            storageBucket: "princealextravel.firebasestorage.app",
+            messagingSenderId: "947577729462",
+            appId: "1:947577729462:web:dd4b4c7cb4a984c5e3d117"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        enableIndexedDbPersistence(db).catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.log('Persistence failed: Multiple tabs open');
+            } else if (err.code == 'unimplemented') {
+                console.log('Persistence not supported');
+            }
+        });
+        const auth = getAuth(app);
+
+        // --- State Management ---
+        const PRESETS = [20, 30, 50, 100, 200, 300];
+        let currentUser = null;
+        let saveTimeout = null;
+        let unsubscribe = null;
+        let lastSavedState = null;
+        let chatUnsubscribe = null;
+        let messagesUnsubscribe = null;
+
+        let state = {
+            increment: 50,
+            startDate: `${new Date().getFullYear()}-01-01`, // Default to Jan 1st of current year
+            payments: {}, // Object: { "1": 50, "2": 100 }
+            remindersSent: [], // Track sent reminders to avoid spam
+            congratsSent: false
+        };
+
+        // --- Initialization ---
+        function init() {
+            renderPresets();
+            setupEventListeners();
+            updateDashboard();
+
+            // Auth & Load Data
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('authOverlay').classList.add('hidden');
+                    subscribeToState();
+                } else {
+                    currentUser = null;
+                    if (unsubscribe) unsubscribe();
+                    document.getElementById('authOverlay').classList.remove('hidden');
+                }
+            });
+        }
+
+        function subscribeToState() {
+            if (!currentUser) return;
+            if (unsubscribe) unsubscribe();
+            
+            const docRef = doc(db, "savings_trackers", currentUser.uid);
+            
+            unsubscribe = onSnapshot(docRef, { includeMetadataChanges: true }, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    state = { ...state, ...data };
+                    lastSavedState = JSON.stringify(state);
+                    
+                    // Migration: If old paidWeeks exists but payments is empty
+                    if (state.paidWeeks && Array.isArray(state.paidWeeks) && (!state.payments || Object.keys(state.payments).length === 0)) {
+                        state.payments = {};
+                        state.paidWeeks.forEach(w => {
+                            state.payments[w] = w * state.increment;
+                        });
+                        delete state.paidWeeks; // Cleanup
+                    }
+
+                    // Update Inputs based on loaded data
+                    const startDateEl = document.getElementById('startDate');
+                    if (startDateEl) startDateEl.value = state.startDate;
+                    
+                    if (!PRESETS.includes(state.increment)) {
+                        document.getElementById('customIncrement').value = state.increment;
+                    }
+                    updateDashboard();
+                } else {
+                    const backup = localStorage.getItem("savings_backup");
+                    if(backup) {
+                        state = JSON.parse(backup);
+                        
+                        // Update Inputs based on backup data
+                        const startDateEl = document.getElementById('startDate');
+                        if (startDateEl) startDateEl.value = state.startDate;
+                        
+                        if (!PRESETS.includes(state.increment)) {
+                            document.getElementById('customIncrement').value = state.increment;
+                        }
+                        updateDashboard();
+                    }
+                }
+
+                // Critical Fix: Ensure email is attached to state for new Google users
+                if (currentUser.email && !state.email) {
+                    state.email = currentUser.email;
+                    // Update Firestore immediately if missing
+                    const docRef = doc(db, "savings_trackers", currentUser.uid);
+                    setDoc(docRef, { email: currentUser.email }, { merge: true });
+                }
+            }, (error) => {
+                console.error("Error loading data:", error);
+            });
+        }
+
+        function saveState() {
+            // 1. Update UI immediately (Optimistic)
+            updateDashboard();
+            localStorage.setItem("savings_backup", JSON.stringify(state));
+            
+            // 2. Debounce Save to Firebase
+            if (!currentUser) return;
+            
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                try {
+                    const newStateStr = JSON.stringify(state);
+                    if (newStateStr === lastSavedState) return;
+
+                    const docRef = doc(db, "savings_trackers", currentUser.uid);
+                    await setDoc(docRef, state);
+                    lastSavedState = newStateStr;
+                } catch (error) {
+                    console.error("Error saving data:", error);
+                }
+            }, 1000); // 1 second debounce
+        }
+
+        // --- UI Rendering ---
+        function renderPresets() {
+            const select = document.getElementById('incrementDropdown');
+            if (!select) return;
+            
+            select.innerHTML = '<option value="" disabled>Select Amount</option>';
+            
+            PRESETS.forEach(val => {
+                const option = document.createElement('option');
+                option.value = val;
+                option.textContent = formatMoney(val);
+                if (state.increment === val) option.selected = true;
+                select.appendChild(option);
+            });
+            
+            if (!PRESETS.includes(state.increment)) {
+                select.value = "";
+            }
+        }
+
+        // --- Core Logic: Ledger Calculation ---
+        function calculateLedger() {
+            let ledger = [];
+            let cumulativeBalance = 0; // Surplus (+) or Deficit (-) carried forward
+            let start = new Date(state.startDate);
+
+            for(let i=1; i<=52; i++) {
+                let baseTarget = i * state.increment;
+                let paid = state.payments[i] || 0;
+                
+                // Net Needed = Base - Previous Surplus (or + Previous Deficit)
+                // If cumulativeBalance is positive (surplus), it reduces need.
+                let netNeeded = baseTarget - cumulativeBalance;
+                if (netNeeded < 0) netNeeded = 0; // Fully covered by surplus
+
+                // New Balance = (Previous Balance + Paid) - Base Target
+                let newBalance = (cumulativeBalance + paid) - baseTarget;
+
+                // Dates
+                const weekStart = new Date(start);
+                weekStart.setDate(start.getDate() + (i - 1) * 7);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+
+                ledger.push({
+                    week: i,
+                    dates: `${formatDate(weekStart)} - ${formatDate(weekEnd)}`,
+                    rawEndDate: weekEnd.toISOString().split('T')[0],
+                    baseTarget,
+                    netNeeded,
+                    paid,
+                    rollover: cumulativeBalance,
+                    balanceAfter: newBalance,
+                    isPaid: newBalance >= 0
+                });
+
+                cumulativeBalance = newBalance;
+            }
+            return ledger;
+        }
+
+        async function checkReminders(ledger) {
+            if (!currentUser || !currentUser.email) return;
+            
+            const todayStr = new Date().toISOString().split('T')[0];
+            const dueWeek = ledger.find(l => l.rawEndDate === todayStr);
+
+            if (dueWeek && dueWeek.netNeeded > 0) {
+                if (!state.remindersSent) state.remindersSent = [];
+                
+                if (!state.remindersSent.includes(dueWeek.week)) {
+                    // Optimistically mark as sent
+                    state.remindersSent.push(dueWeek.week);
+                    saveState();
+
+                    try {
+                        await addDoc(collection(db, "mail"), {
+                            to: currentUser.email,
+                            source: '52_weeks_tracker',
+                            message: {
+                                subject: `Reminder: Week ${dueWeek.week} Savings Due Today`,
+                                html: `
+                                    <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                                        <div style="text-align: center; padding: 20px 0;"><h1 style="margin: 0; color: #008f51; font-size: 24px;">My 52 WEEKS <span style="color: #000;">SAVING</span></h1><p style="margin: 5px 0 0; color: #666; font-size: 14px;">Tracker</p></div>
+                                        <h2 style="color: #008f51;">Savings Reminder</h2>
+                                        <p>Hello ${state.fullName ? state.fullName.split(' ')[0] : 'there'},</p>
+                                        <p>This is a friendly reminder that <strong>today is the due date</strong> for Week ${dueWeek.week} of your savings challenge.</p>
+                                        
+                                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                                            <p style="margin: 0; font-size: 0.9rem; color: #666;">Amount Needed</p>
+                                            <p style="margin: 5px 0 0; font-size: 1.5rem; font-weight: bold; color: #008f51;">${formatMoney(dueWeek.netNeeded)}</p>
+                                        </div>
+
+                                        <p>If you have already saved this amount, please log in and update your dashboard to keep your records current.</p>
+                                        <p style="font-size: 0.8em; color: #999; text-align: center; margin-top: 20px;">Powered by Prince Alex Digital</p>
+                                    </div>
+                                `
+                            }
+                        });
+                    } catch (e) { console.error("Reminder error", e); }
+                }
+            }
+        }
+
+        async function checkCompletion(weeksCompleted, totalSaved) {
+            if (!currentUser || !currentUser.email) return;
+
+            if (weeksCompleted === 52 && !state.congratsSent) {
+                state.congratsSent = true;
+                saveState();
+
+                try {
+                    await addDoc(collection(db, "mail"), {
+                        to: currentUser.email,
+                        source: '52_weeks_tracker',
+                        message: {
+                            subject: "🎉 Congratulations! You've Completed the 52 Weeks Challenge!",
+                            html: `
+                                <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                                    <div style="text-align: center; padding: 20px 0;"><h1 style="margin: 0; color: #008f51; font-size: 24px;">My 52 WEEKS <span style="color: #000;">SAVING</span></h1><p style="margin: 5px 0 0; color: #666; font-size: 14px;">Tracker</p></div>
+                                    
+                                    <div style="text-align: center; margin: 30px 0;">
+                                        <div style="font-size: 60px;">🏆</div>
+                                        <h2 style="color: #008f51; font-size: 28px; margin: 10px 0;">Challenge Completed!</h2>
+                                        <p style="font-size: 18px; color: #555;">You did it, ${state.fullName ? state.fullName.split(' ')[0] : 'Champion'}!</p>
+                                    </div>
+
+                                    <div style="background: #f8f9fa; padding: 30px; border-radius: 12px; text-align: center; border: 1px solid #eee;">
+                                        <p style="margin: 0; color: #666;">Total Amount Saved</p>
+                                        <p style="margin: 10px 0 0; font-size: 32px; font-weight: bold; color: #008f51;">${formatMoney(totalSaved)}</p>
+                                        <p style="margin: 10px 0 0; font-size: 14px; color: #999;">Over 52 Weeks</p>
+                                    </div>
+
+                                    <div style="margin-top: 30px;">
+                                        <p>This is a massive achievement. Consistency is the hardest part of financial discipline, and you have proven that you have what it takes.</p>
+                                        <p><strong>What's Next?</strong></p>
+                                        <ul>
+                                            <li>Withdraw your savings from your storage (bank, mobile money, cash box).</li>
+                                            <li>Celebrate your success (responsibly!).</li>
+                                            <li>Consider starting a new challenge with a higher increment!</li>
+                                        </ul>
+                                    </div>
+
+                                    <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+                                    <p style="font-size: 0.8em; color: #999; text-align: center;">Powered by Prince Alex Digital</p>
+                                </div>
+                            `
+                        }
+                    });
+                    showMessage('success', 'Congratulations!', 'You have completed the 52 Weeks Challenge! A congratulatory email has been sent to you.');
+                } catch (e) { console.error("Congrats email error", e); }
+            }
+        }
+
+        function updateDashboard() {
+            if (!state.increment || state.increment <= 0) return;
+            if (!state.startDate) return;
+
+            // 0. Update Title
+            const dashboardView = document.getElementById('view-dashboard');
+            if (dashboardView && dashboardView.style.display !== 'none') {
+                const greeting = state.fullName ? `Hello, ${state.fullName.split(' ')[0]}` : 'My Savings Dashboard';
+                document.querySelector('.page-title').textContent = greeting;
+            }
+            
+            // Update Profile View
+            document.getElementById('profileName').value = state.fullName || '-';
+            document.getElementById('profileGoal').value = state.yearlyGoal ? formatMoney(state.yearlyGoal) : '-';
+            document.getElementById('profileGoal').value = state.yearlyGoal ? formatMoney(Number(state.yearlyGoal)) : '-';
+            document.getElementById('dispPersonalGoal').textContent = state.yearlyGoal ? formatMoney(Number(state.yearlyGoal)) : 'Not Set';
+
+            // Calculate Ledger
+            const ledger = calculateLedger();
+
+            // Check for Reminders
+            checkReminders(ledger).catch(err => console.error("Error in reminders:", err));
+
+            // 1. Update Cards
+            // Arithmetic Series Sum: n/2 * (2a + (n-1)d)
+            const totalTarget = (52 * 53 / 2) * state.increment;
+            const finalWeek = state.increment * 52;
+            
+            document.getElementById('dispIncrement').textContent = formatMoney(state.increment);
+            document.getElementById('dispTarget').textContent = formatMoney(totalTarget);
+            
+            // 2. Calculate Totals
+            const totalSaved = Object.values(state.payments || {}).reduce((a, b) => a + b, 0);
+            const weeksCompleted = ledger.filter(l => l.isPaid).length;
+            
+            document.getElementById('dispSaved').textContent = formatMoney(totalSaved);
+            document.getElementById('dispWeeks').textContent = `${weeksCompleted} / 52`;
+
+            // Check for Completion
+            checkCompletion(weeksCompleted, totalSaved).catch(err => console.error("Error in completion check:", err));
+
+            // 3. Progress Bar
+            const pct = (weeksCompleted / 52) * 100;
+            const bar = document.getElementById('progressBar');
+            bar.style.width = `${pct}%`;
+            bar.textContent = pct > 10 ? `${Math.round(pct)}%` : '';
+            document.getElementById('progressText').textContent = `${Math.round(pct)}%`;
+
+            // 4. Update Action Card (Active Week)
+            // Find first week where balanceAfter < 0 (deficit) OR first week generally if all paid
+            let activeWeek = ledger.find(l => !l.isPaid) || ledger[ledger.length - 1];
+            
+            // --- Status Message Logic ---
+            const now = new Date();
+            const start = new Date(state.startDate);
+            now.setHours(0,0,0,0);
+            start.setHours(0,0,0,0);
+            
+            const diffTime = now - start;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            let temporalWeek = Math.floor(diffDays / 7) + 1;
+            
+            // Clamp temporal week
+            if (temporalWeek < 1) temporalWeek = 1;
+
+            const statusEl = document.getElementById('actionStatus');
+            statusEl.style.display = 'flex';
+            statusEl.className = 'status-message'; // Reset classes
+
+            if (activeWeek.isPaid) {
+                 // All 52 weeks paid
+                 statusEl.innerHTML = `<div class="status-icon">🏆</div><div class="status-text"><strong>Challenge Completed!</strong><span>You have finished the 52-week challenge. Great job!</span></div>`;
+                 statusEl.classList.add('success');
+            } else if (activeWeek.week > temporalWeek) {
+                // Ahead of schedule
+                statusEl.innerHTML = `<div class="status-icon">🎉</div><div class="status-text"><strong>Congratulation , Week ${temporalWeek} is sorted,</strong><span>You are ahead of schedule. You can start saving for Week ${activeWeek.week}.</span></div>`;
+                statusEl.classList.add('success');
+            } else if (activeWeek.week < temporalWeek) {
+                // Behind schedule
+                // Calculate catch up amount (Net Needed for the current temporal week includes all previous deficits)
+                let targetIndex = temporalWeek - 1;
+                if (targetIndex > 51) targetIndex = 51;
+                const catchUpAmount = ledger[targetIndex].netNeeded - ledger[targetIndex].paid;
+                
+                statusEl.innerHTML = `<div class="status-icon">⚠️</div><div class="status-text"><strong>Catch Up Needed</strong><span>We are in Week ${temporalWeek}. Pay <strong>${formatMoney(catchUpAmount)}</strong> to backfill passed weeks.</span></div>`;
+                statusEl.classList.add('warning');
+            } else {
+                // On track (Current week)
+                statusEl.innerHTML = `<div class="status-icon">📅</div><div class="status-text"><strong>Current Week ${temporalWeek}</strong><span>Save ${formatMoney(activeWeek.netNeeded)} to complete this week's goal.</span></div>`;
+                const remaining = activeWeek.netNeeded - activeWeek.paid;
+                statusEl.innerHTML = `<div class="status-icon">📅</div><div class="status-text"><strong>Current Week ${temporalWeek}</strong><span>Save ${formatMoney(remaining)} to complete this week's goal.</span></div>`;
+            }
+
+            document.getElementById('activeWeekLabel').textContent = `Week ${activeWeek.week}`;
+            document.getElementById('activeWeekDate').textContent = activeWeek.dates;
+            document.getElementById('activeTarget').textContent = formatMoney(activeWeek.baseTarget);
+            
+            // Rollover display
+            const rollEl = document.getElementById('activeRollover');
+            if(activeWeek.rollover > 0) {
+                rollEl.textContent = "+" + formatMoney(activeWeek.rollover);
+                rollEl.style.color = "#aaffaa";
+            } else if (activeWeek.rollover < 0) {
+                rollEl.textContent = "-" + formatMoney(Math.abs(activeWeek.rollover));
+                rollEl.style.color = "#ffaaaa";
+            } else {
+                rollEl.textContent = "0";
+                rollEl.style.color = "white";
+            }
+
+            document.getElementById('activeNet').textContent = formatMoney(activeWeek.netNeeded);
+            
+            // Store active week index for the save button
+            document.getElementById('paymentInput').dataset.week = activeWeek.week;
+            document.getElementById('paymentInput').dataset.netNeeded = activeWeek.netNeeded;
+            document.getElementById('paymentInput').value = ''; // Clear input
+
+            // 5. Render Table
+            renderTable(ledger);
+            
+            // 5. Update Preset UI classes
+            renderPresets();
+        }
+
+        function renderTable(ledger) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            // Calculate current week for highlighting
+            const now = new Date();
+            const start = new Date(state.startDate);
+            now.setHours(0,0,0,0);
+            start.setHours(0,0,0,0);
+            const diffTime = now - start;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            let currentWeek = Math.floor(diffDays / 7) + 1;
+            
+            ledger.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                // Determine status class
+                let classes = [];
+                if (row.isPaid) classes.push('status-paid');
+                else if (row.paid > 0) classes.push('status-partial');
+
+                if (row.week === currentWeek) classes.push('current-week');
+                else if (row.week < currentWeek && !row.isPaid) classes.push('overdue');
+
+                tr.className = classes.join(' ');
+
+                // Format Balance
+                let balanceHtml = '<span style="color: #ccc;">-</span>';
+                if (row.balanceAfter > 0) balanceHtml = `<span class="amount-positive">+${formatMoney(row.balanceAfter)}</span>`;
+                if (row.balanceAfter < 0) balanceHtml = `<span class="amount-negative">${formatMoney(row.balanceAfter)}</span>`;
+
+                tr.innerHTML = `
+                    <td>${row.week}</td>
+                    <td>${row.dates}</td>
+                    <td>${formatMoney(row.netNeeded)} <small style="color:#999;">(of ${formatMoney(row.baseTarget)})</small></td>
+                    <td style="font-weight:bold;">${row.paid > 0 ? formatMoney(row.paid) : '-'}</td>
+                    <td>${balanceHtml}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- Logic & Helpers ---
+        function setIncrement(val) {
+            state.increment = parseInt(val);
+            document.getElementById('customIncrement').value = ''; // Clear custom if preset chosen
+            saveState();
+        }
+        window.setIncrement = setIncrement; // Expose to global
+
+        function saveDropdownIncrement() {
+            const select = document.getElementById('incrementDropdown');
+            const val = parseInt(select.value);
+            if (val && val > 0) {
+                state.increment = val;
+                document.getElementById('customIncrement').value = ''; // Clear custom
+                saveState();
+                showMessage('success', 'Settings Updated', `Weekly increment set to ${formatMoney(val)}`);
+            }
+        }
+        window.saveDropdownIncrement = saveDropdownIncrement;
+
+        function fillAmount(type) {
+            const input = document.getElementById('paymentInput');
+            const netNeeded = parseInt(input.dataset.netNeeded) || 0;
+            
+            if (type === 'exact') input.value = netNeeded;
+            if (type === 'half') input.value = Math.ceil(netNeeded / 2);
+            if (type === 'double') input.value = netNeeded * 2;
+        }
+        window.fillAmount = fillAmount;
+
+        function saveCurrentPayment() {
+            const input = document.getElementById('paymentInput');
+            const week = parseInt(input.dataset.week);
+            const amount = parseInt(input.value);
+            const netNeeded = parseInt(input.dataset.netNeeded) || 0;
+            
+            if(week && !isNaN(amount) && amount > 0) {
+                const processPayment = () => {
+                    state.payments[week] = (state.payments[week] || 0) + amount;
+                    saveState();
+                    input.value = ''; // Clear input
+                    showMessage('success', 'Transaction Saved', `Successfully saved ${formatMoney(amount)} for Week ${week}.`);
+                };
+
+                // Safety Check for high amounts
+                if (netNeeded > 0 && amount > netNeeded * 2) {
+                    showConfirm("High Amount Warning", "This amount is higher than required. Continue?", processPayment);
+                } else {
+                    processPayment();
+                }
+            }
+        }
+        window.saveCurrentPayment = saveCurrentPayment;
+
+        function exportPDF(btnElement) {
+            const btn = btnElement || document.querySelector('button[onclick="exportPDF()"]');
+            const originalText = btn ? btn.innerHTML : '';
+            if (btn) { btn.innerHTML = '<span>⏳</span> Generating...'; btn.disabled = true; }
+
+            // Create a dedicated container for PDF generation
+            let container = document.getElementById('pdf-generator-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'pdf-generator-container';
+                // Position off-screen but visible to rendering engine
+                container.style.position = 'absolute';
+                container.style.left = '-9999px';
+                container.style.top = '0';
+                container.style.width = '800px'; // A4 width approx
+                document.body.appendChild(container);
+            }
+            container.innerHTML = ''; // Clear previous
+
+            // Clone content
+            const dashboardClone = document.getElementById('view-dashboard').cloneNode(true);
+            const trackerClone = document.getElementById('view-tracker').cloneNode(true);
+
+            // Clean up Dashboard Clone (Remove interactive elements)
+            const actionCard = dashboardClone.querySelector('#actionCard');
+            if (actionCard) actionCard.remove();
+            
+            // Ensure Tracker is visible in clone
+            trackerClone.style.display = 'block';
+
+            // Construct Report
+            const report = document.createElement('div');
+            report.style.padding = '40px';
+            report.style.fontFamily = 'Helvetica, Arial, sans-serif';
+            
+            const userName = state.fullName || "Member";
+            const userEmail = currentUser ? currentUser.email : "";
+
+            report.innerHTML = `
+                <div style="text-align: center; margin-bottom: 40px;">
+                    <h1 style="color: #008f51; margin: 0; font-size: 24px;">My 52 WEEKS SAVING</h1>
+                    <p style="color: #666; margin: 5px 0;">Yearly Progress Report</p>
+                    <div style="margin: 15px 0; padding: 10px; border: 1px solid #eee; display: inline-block; border-radius: 8px; min-width: 200px;">
+                        <p style="margin: 0; font-weight: bold; font-size: 1.1rem;">${userName}</p>
+                        <p style="margin: 5px 0 0; color: #666;">${userEmail}</p>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #999;">Generated on ${new Date().toLocaleDateString()}</p>
+                </div>
+            `;
+            
+            report.appendChild(dashboardClone);
+            
+            const trackerTitle = document.createElement('h3');
+            trackerTitle.textContent = 'Detailed Tracker';
+            trackerTitle.style.marginTop = '40px';
+            trackerTitle.style.borderBottom = '2px solid #eee';
+            trackerTitle.style.paddingBottom = '10px';
+            trackerTitle.style.color = '#333';
+            report.appendChild(trackerTitle);
+            
+            report.appendChild(trackerClone);
+
+            const footer = document.createElement('div');
+            footer.innerHTML = 'Powered by Prince Alex Digital';
+            footer.style.textAlign = 'center';
+            footer.style.marginTop = '40px';
+            footer.style.fontSize = '10px';
+            footer.style.color = '#ccc';
+            report.appendChild(footer);
+
+            container.appendChild(report);
+
+            // Generate
+            const opt = {
+                margin: 10,
+                filename: `Savings_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(report).save().then(() => {
+                if (btn) { btn.innerHTML = originalText; btn.disabled = false; }
+                container.innerHTML = ''; // Cleanup
+            }).catch(err => {
+                console.error(err);
+                alert('Could not generate PDF. Please try "Print View" instead.');
+                if (btn) { btn.innerHTML = originalText; btn.disabled = false; }
+            });
+        }
+        window.exportPDF = exportPDF;
+
+        // --- Chat Logic ---
+        let typingTimeout = null;
+
+        function initChat() {
+            if (!currentUser) return;
+            
+            const chatDocRef = doc(db, "support_chats", currentUser.uid);
+            const messagesRef = collection(db, "support_chats", currentUser.uid, "messages");
+
+            // 1. Listen to Chat Metadata (Status, Admin Typing)
+            if (chatUnsubscribe) chatUnsubscribe();
+            chatUnsubscribe = onSnapshot(chatDocRef, (docSnap) => {
+                const statusText = document.getElementById('chatStatusText');
+                const statusDot = document.getElementById('chatStatusDot');
+                const agentNameEl = document.getElementById('chatAgentName');
+                const typingEl = document.getElementById('adminTypingIndicator');
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.status === 'active') {
+                        statusText.textContent = 'Replies within minutes';
+                        statusDot.className = 'status-dot online';
+                        if (data.adminName) agentNameEl.textContent = data.adminName;
+                    } else if (data.status === 'offline') {
+                        statusText.textContent = 'Support is offline. We will reply when back online.';
+                        statusDot.className = 'status-dot';
+                    } else {
+                        statusText.textContent = 'Connecting to admin support...';
+                        statusDot.className = 'status-dot'; // Gray
+                    }
+
+                    typingEl.style.display = data.adminTyping ? 'flex' : 'none';
+                } else {
+                    // Chat doesn't exist yet
+                    statusText.textContent = 'Connecting to admin support...';
+                    statusDot.className = 'status-dot';
+                }
+            });
+
+            // 2. Listen to Messages
+            if (messagesUnsubscribe) messagesUnsubscribe();
+            const q = query(messagesRef, orderBy('timestamp', 'asc'));
+            messagesUnsubscribe = onSnapshot(q, (snapshot) => {
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = '';
+                
+                if (snapshot.empty) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <h4>Welcome to Support</h4>
+                            <p>Our team is here to help. Start by typing your question below.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                snapshot.forEach(doc => {
+                    const msg = doc.data();
+                    const wrapper = document.createElement('div');
+                    wrapper.className = `message-wrapper ${msg.sender === 'user' ? 'user' : 'admin'}`;
+                    
+                    let timeStr = '';
+                    if (msg.timestamp) {
+                        const date = msg.timestamp.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp);
+                        timeStr = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    }
+
+                    wrapper.innerHTML = `
+                        <div class="message-bubble">${msg.text}</div>
+                        <div class="msg-timestamp">${timeStr}</div>
+                    `;
+                    container.appendChild(wrapper);
+                });
+                container.scrollTop = container.scrollHeight;
+            });
+
+            // 3. Input Listeners
+            const chatInput = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('chatSendBtn');
+
+            chatInput.oninput = (e) => {
+                sendBtn.disabled = e.target.value.trim() === '';
+                
+                // Typing indicator logic
+                updateDoc(chatDocRef, { userTyping: true }).catch(() => {});
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    updateDoc(chatDocRef, { userTyping: false }).catch(() => {});
+                }, 2000);
+            };
+
+            chatInput.onkeypress = (e) => {
+                if (e.key === 'Enter' && !sendBtn.disabled) {
+                    sendChatMessage();
+                }
+            };
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('chatSendBtn');
+            const text = input.value.trim();
+            if (!text || !currentUser) return;
+
+            input.value = '';
+            sendBtn.disabled = true;
+            
+            const chatDocRef = doc(db, "support_chats", currentUser.uid);
+            const messagesRef = collection(db, "support_chats", currentUser.uid, "messages");
+
+            // Check if chat exists to trigger auto-reply
+            let isNewChat = false;
+            try {
+                const docSnap = await getDoc(chatDocRef);
+                if (!docSnap.exists()) isNewChat = true;
+            } catch (e) { console.log("Error checking chat:", e); }
+
+            // Ensure chat doc exists
+            await setDoc(chatDocRef, {
+                userEmail: currentUser.email,
+                userName: state.fullName || 'User',
+                lastMessage: text,
+                timestamp: serverTimestamp(),
+                userTyping: false
+            }, { merge: true });
+
+            await addDoc(messagesRef, {
+                text: text,
+                sender: 'user',
+                timestamp: serverTimestamp()
+            });
+
+            // Auto-reply for new chats
+            if (isNewChat) {
+                setTimeout(async () => {
+                    await addDoc(messagesRef, {
+                        text: "The admin support will soon reply to your message.",
+                        sender: 'admin',
+                        timestamp: serverTimestamp()
+                    });
+                }, 1000);
+            }
+        }
+        window.sendChatMessage = sendChatMessage;
+
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (input.type === "password") {
+                input.type = "text";
+                btn.textContent = "🙈";
+            } else {
+                input.type = "password";
+                btn.textContent = "👁️";
+            }
+        }
+        window.togglePassword = togglePassword;
+
+        function showMessage(type, title, body, callback) {
+            const overlay = document.getElementById('messageOverlay');
+            const icon = document.getElementById('msgIcon');
+            const titleEl = document.getElementById('msgTitle');
+            const bodyEl = document.getElementById('msgBody');
+            const btn = document.getElementById('msgBtn');
+            const cancelBtn = document.getElementById('msgCancelBtn');
+
+            overlay.classList.remove('hidden');
+            cancelBtn.style.display = 'none';
+            btn.textContent = 'Okay';
+            
+            if (type === 'success') {
+                icon.className = 'message-icon icon-success';
+                icon.textContent = '🎉';
+            } else {
+                icon.className = 'message-icon icon-error';
+                icon.textContent = '⚠️';
+            }
+
+            titleEl.textContent = title;
+            bodyEl.textContent = body;
+
+            btn.onclick = () => {
+                overlay.classList.add('hidden');
+                if (callback) callback();
+            };
+        }
+
+        function showConfirm(title, body, onConfirm) {
+            const overlay = document.getElementById('messageOverlay');
+            const icon = document.getElementById('msgIcon');
+            const titleEl = document.getElementById('msgTitle');
+            const bodyEl = document.getElementById('msgBody');
+            const btn = document.getElementById('msgBtn');
+            const cancelBtn = document.getElementById('msgCancelBtn');
+
+            overlay.classList.remove('hidden');
+            
+            icon.className = 'message-icon icon-warning';
+            icon.textContent = '⚠️';
+
+            titleEl.textContent = title;
+            bodyEl.textContent = body;
+
+            cancelBtn.style.display = 'block';
+            btn.textContent = 'Continue';
+            
+            cancelBtn.onclick = () => overlay.classList.add('hidden');
+            btn.onclick = () => {
+                overlay.classList.add('hidden');
+                if (onConfirm) onConfirm();
+            };
+        }
+
+        function getFriendlyErrorMessage(error) {
+            const code = error.code || '';
+            if (code.includes('user-not-found') || code.includes('wrong-password') || code.includes('invalid-credential')) return "Incorrect email or password. Please try again.";
+            if (code.includes('email-already-in-use')) return "This email is already registered. Try logging in instead.";
+            if (code.includes('weak-password')) return "Password should be at least 6 characters.";
+            if (code.includes('network-request-failed')) return "Please check your internet connection.";
+            return error.message.replace('Firebase: ', '') || "Something went wrong. Please try again.";
+        }
+
+        function setupEventListeners() {
+            // --- Auth Listeners ---
+            const authOverlay = document.getElementById('authOverlay');
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+
+            // Toggle Login/Register
+            document.getElementById('toggleAuthBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                const isLogin = !loginForm.classList.contains('hidden');
+                if (isLogin) {
+                    loginForm.classList.add('hidden');
+                    registerForm.classList.remove('hidden');
+                    document.getElementById('formTitle').textContent = 'Create Account';
+                    e.target.textContent = 'Log In';
+                    document.getElementById('toggleAuthText').firstChild.textContent = 'Already have an account? ';
+                } else {
+                    loginForm.classList.remove('hidden');
+                    registerForm.classList.add('hidden');
+                    document.getElementById('formTitle').textContent = 'Welcome Back';
+                    e.target.textContent = 'Register';
+                    document.getElementById('toggleAuthText').firstChild.textContent = "Don't have an account? ";
+                }
+            });
+
+            // Handle Login
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('loginEmail').value;
+                const pass = document.getElementById('loginPassword').value;
+                try {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                    // Success handled by onAuthStateChanged
+                } catch (err) {
+                    showMessage('error', 'Login Failed', getFriendlyErrorMessage(err));
+                }
+            });
+
+            // Handle Register
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('regEmail').value;
+                const pass = document.getElementById('regPassword').value;
+                const name = document.getElementById('regName').value;
+                const phone = document.getElementById('regPhone').value;
+                const goal = document.getElementById('regGoal').value;
+                const incrementVal = parseInt(document.getElementById('regIncrement').value) || 50;
+
+                try {
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+                    const user = userCredential.user;
+
+                    const userData = {
+                        fullName: name,
+                        email: email,
+                        phoneNumber: phone,
+                        yearlyGoal: goal,
+                        increment: incrementVal,
+                        startDate: `${new Date().getFullYear()}-01-01`, // Default to Jan 1st
+                        payments: {}
+                    };
+
+                    await setDoc(doc(db, "savings_trackers", user.uid), userData);
+
+                    // Trigger Welcome Email via Firestore 'mail' collection
+                    await addDoc(collection(db, "mail"), {
+                        to: email,
+                        source: '52_weeks_tracker',
+                        message: {
+                            subject: "Welcome to the 52 Weeks Saving Tracker!",
+                            html: `
+                                <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                                    <div style="text-align: center; padding: 20px 0;"><h1 style="margin: 0; color: #008f51; font-size: 24px;">My 52 WEEKS <span style="color: #000;">SAVING</span></h1><p style="margin: 5px 0 0; color: #666; font-size: 14px;">Tracker</p></div>
+                                    <h2 style="color: #008f51; border-bottom: 2px solid #008f51; padding-bottom: 10px;">Welcome, ${name.split(' ')[0]}!</h2>
+                                    <p>Thank you for joining the 52 Weeks Saving Tracker. We are excited to help you track your journey towards financial discipline.</p>
+                                    
+                                    <div style="background-color: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 5px; margin: 20px 0; color: #856404;">
+                                        <strong>Important Notice:</strong> This dashboard is a tracking tool designed to assist you in achieving your goals. 
+                                        <strong>This is NOT a savings platform</strong> and we do not hold any funds.
+                                    </div>
+
+                                    <h3 style="color: #333;">Your Challenge Details</h3>
+                                    <ul style="background: #f8f9fa; padding: 20px 40px; border-radius: 8px;">
+                                        <li style="margin-bottom: 10px;"><strong>Yearly Goal:</strong> ${formatMoney(goal)}</li>
+                                        <li style="margin-bottom: 10px;"><strong>Weekly Increase:</strong> ${formatMoney(incrementVal)}</li>
+                                    </ul>
+
+                                    <p>We wish you all the best in this savings challenge! Remember, consistency is key.</p>
+                                    
+                                    <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;">
+                                    
+                                    <p style="font-size: 0.9em; color: #666;">
+                                        <strong>Have questions or issues?</strong><br>
+                                        WhatsApp: <a href="https://wa.me/254717384875" style="color: #008f51; text-decoration: none;">0717 384 875</a><br>
+                                        Email: <a href="mailto:info@princealex.pro" style="color: #008f51; text-decoration: none;">info@princealex.pro</a>
+                                    </p>
+                                    <p style="font-size: 0.8em; color: #999; text-align: center; margin-top: 20px;">Powered by Prince Alex Digital</p>
+                                </div>
+                            `
+                        }
+                    });
+
+                    state = { ...state, ...userData };
+                    updateDashboard();
+                    showMessage('success', 'Account Created!', `Welcome to the challenge, ${name.split(' ')[0]}! We've sent a welcome email to ${email}.`);
+                } catch (err) {
+                    showMessage('error', 'Registration Failed', getFriendlyErrorMessage(err));
+                }
+            });
+
+            // Handle Google
+            document.getElementById('googleBtn').addEventListener('click', async () => {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(auth, provider);
+                    // Success handled by onAuthStateChanged
+                } catch (err) {
+                    showMessage('error', 'Google Sign-In Failed', getFriendlyErrorMessage(err));
+                }
+            });
+
+            // Handle Logout
+            document.getElementById('logoutBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                signOut(auth);
+            });
+
+            // Custom Input
+            const customInput = document.getElementById('customIncrement');
+            customInput.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                if (val && val > 0) {
+                    state.increment = val;
+                    saveState();
+                }
+            });
+
+            // Start Date
+            document.getElementById('startDate').addEventListener('change', (e) => {
+                state.startDate = e.target.value;
+                saveState();
+            });
+
+            // Mobile Menu
+            const sidebar = document.getElementById('sidebar');
+            document.getElementById('menuToggle').addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+            });
+
+            // Close sidebar when clicking outside on mobile
+            document.addEventListener('click', (e) => {
+                if (window.innerWidth <= 768 && 
+                    !sidebar.contains(e.target) && 
+                    e.target.id !== 'menuToggle') {
+                    sidebar.classList.remove('active');
+                }
+            });
+        }
+
+        function formatMoney(val) {
+            return `KSh ${Number(val).toLocaleString()}`;
+        }
+
+        function formatDate(date) {
+            return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        }
+
+        function switchView(viewId, navElement) {
+            // Hide all views
+            document.querySelectorAll('.view-section').forEach(el => el.style.display = 'none');
+            // Show target
+            document.getElementById('view-' + viewId).style.display = 'block';
+            
+            // Update Nav
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+            if(navElement) navElement.classList.add('active');
+
+            // Update Header Title
+            const titles = {
+                'dashboard': state.fullName ? `Hello, ${state.fullName.split(' ')[0]}` : 'My Savings Dashboard',
+                'tracker': 'Weekly Tracker',
+                'settings': 'Challenge Settings',
+                'chat': 'Chat Support',
+                'guide': 'User Guide'
+            };
+            document.querySelector('.page-title').textContent = titles[viewId] || 'My Savings Dashboard';
+
+            // Mobile Sidebar handling
+            if(window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('active');
+            }
+
+            if (viewId === 'chat') {
+                initChat();
+            }
+        }
+        window.switchView = switchView; // Expose to global
+
+        // Run
+        init();
+    </script>
+</body>
+</html>
