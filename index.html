@@ -72,6 +72,20 @@
         .mobile-toggle { display: none; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-main); }
         .page-title { font-size: 1.5rem; font-weight: 700; }
 
+        /* Notification Icon */
+        .notification-btn {
+            background: white; border: 1px solid var(--border); cursor: pointer; 
+            font-size: 1.2rem; position: relative; width: 40px; height: 40px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; color: var(--text-muted);
+        }
+        .notification-btn:hover { background: #f8f9fa; color: var(--primary); transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .notification-btn.active { color: var(--primary); border-color: var(--primary); background: rgba(0, 143, 81, 0.1); }
+        .notification-badge {
+            position: absolute; top: -2px; right: -2px; width: 12px; height: 12px;
+            background: var(--accent); border-radius: 50%; display: none; border: 2px solid white;
+        }
+
         /* --- Controls Section --- */
         .controls-card {
             background: var(--card-bg); padding: 25px; border-radius: 12px;
@@ -340,8 +354,14 @@
             .chat-window { height: calc(100vh - 160px); }
             .message-wrapper { max-width: 90%; }
         }
+
+        /* --- Charts --- */
+        .chart-container { position: relative; height: 200px; width: 100%; }
+        .wide-card { grid-column: span 2; }
+        @media (max-width: 768px) { .wide-card { grid-column: span 1; } }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -366,7 +386,10 @@
         <div class="top-bar">
             <button class="mobile-toggle" id="menuToggle">☰</button>
             <h1 class="page-title">My Savings Dashboard</h1>
-            <div style="width: 24px;"></div> <!-- Spacer for balance -->
+            <button class="notification-btn" id="notifyBtn" onclick="toggleNotifications()" title="Enable Notifications">
+                🔔
+                <span class="notification-badge" id="notifyBadge"></span>
+            </button>
         </div>
 
         <!-- VIEW: DASHBOARD -->
@@ -433,6 +456,30 @@
                 </div>
                 <div class="progress-track">
                     <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="stats-grid">
+                <div class="stat-card wide-card">
+                    <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px;">Savings Growth</h3>
+                    <div class="chart-container">
+                        <canvas id="savingsLineChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px;">Weekly Performance</h3>
+                    <div class="chart-container">
+                        <canvas id="weeklyBarChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px;">Completion</h3>
+                    <div class="chart-container" style="display:flex; justify-content:center; align-items:center;">
+                        <canvas id="progressDoughnut"></canvas>
+                    </div>
                 </div>
             </section>
         </div>
@@ -654,7 +701,7 @@
         <div class="auth-card message-card">
             <div id="msgIcon" class="message-icon"></div>
             <h3 id="msgTitle" style="margin-bottom: 10px; color: var(--text-main);"></h3>
-            <p id="msgBody" style="color: var(--text-muted); margin-bottom: 25px; line-height: 1.5; font-size: 0.95rem;"></p>
+            <div id="msgBody" style="color: var(--text-muted); margin-bottom: 25px; line-height: 1.5; font-size: 0.95rem;"></div>
             <div style="display: flex; gap: 10px;">
                 <button id="msgCancelBtn" class="btn-primary" style="flex: 1; background: #e0e0e0; color: #333; display: none;">Cancel</button>
                 <button id="msgBtn" class="btn-primary" style="flex: 1;">Okay</button>
@@ -674,6 +721,7 @@
             signInWithEmailAndPassword,
             signOut 
         } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -695,6 +743,7 @@
             }
         });
         const auth = getAuth(app);
+        const messaging = getMessaging(app);
 
         // --- State Management ---
         const PRESETS = [20, 30, 50, 100, 200, 300];
@@ -704,12 +753,21 @@
         let lastSavedState = null;
         let chatUnsubscribe = null;
         let messagesUnsubscribe = null;
+        
+        // Chart Instances
+        let lineChart = null;
+        let barChart = null;
+        let doughnutChart = null;
 
         let state = {
             increment: 50,
             startDate: `${new Date().getFullYear()}-01-01`, // Default to Jan 1st of current year
             payments: {}, // Object: { "1": 50, "2": 100 }
             remindersSent: [], // Track sent reminders to avoid spam
+            overdueRemindersSent: [], // Track overdue reminders
+            monthlySummariesSent: [], // Track monthly summaries
+            tipsSent: [], // Track educational tips
+            milestonesSent: [], // Track milestone emails
             congratsSent: false
         };
 
@@ -718,6 +776,7 @@
             renderPresets();
             setupEventListeners();
             updateDashboard();
+            checkNotificationStatus();
 
             // Auth & Load Data
             onAuthStateChanged(auth, (user) => {
@@ -813,6 +872,11 @@
             }, 1000); // 1 second debounce
         }
 
+        function updateState(partial) {
+            state = { ...state, ...partial };
+            saveState();
+        }
+
         // --- UI Rendering ---
         function renderPresets() {
             const select = document.getElementById('incrementDropdown');
@@ -834,6 +898,23 @@
         }
 
         // --- Core Logic: Ledger Calculation ---
+        let cachedLedger = null;
+        let lastLedgerKey = '';
+
+        function getLedger() {
+            const key = JSON.stringify({
+                increment: state.increment,
+                startDate: state.startDate,
+                payments: state.payments
+            });
+
+            if (key !== lastLedgerKey) {
+                cachedLedger = calculateLedger();
+                lastLedgerKey = key;
+            }
+            return cachedLedger;
+        }
+
         function calculateLedger() {
             let ledger = [];
             let cumulativeBalance = 0; // Surplus (+) or Deficit (-) carried forward
@@ -877,16 +958,18 @@
         async function checkReminders(ledger) {
             if (!currentUser || !currentUser.email) return;
             
-            const todayStr = new Date().toISOString().split('T')[0];
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            
+            // 1. Due Date Reminder
             const dueWeek = ledger.find(l => l.rawEndDate === todayStr);
 
             if (dueWeek && dueWeek.netNeeded > 0) {
-                if (!state.remindersSent) state.remindersSent = [];
+                const sent = state.remindersSent || [];
                 
-                if (!state.remindersSent.includes(dueWeek.week)) {
-                    // Optimistically mark as sent
-                    state.remindersSent.push(dueWeek.week);
-                    saveState();
+                if (!sent.includes(dueWeek.week)) {
+                    // Optimistically mark as sent via immutable update
+                    updateState({ remindersSent: [...sent, dueWeek.week] });
 
                     try {
                         await addDoc(collection(db, "mail"), {
@@ -915,14 +998,405 @@
                     } catch (e) { console.error("Reminder error", e); }
                 }
             }
+
+            // 2. Overdue Reminder (3 Days Late)
+            const threeDaysAgo = new Date(today);
+            threeDaysAgo.setDate(today.getDate() - 3);
+            const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
+            
+            const overdueWeek = ledger.find(l => l.rawEndDate === threeDaysAgoStr);
+
+            if (overdueWeek && overdueWeek.netNeeded > 0) {
+                const sent = state.overdueRemindersSent || [];
+                
+                if (!sent.includes(overdueWeek.week)) {
+                    updateState({ overdueRemindersSent: [...sent, overdueWeek.week] });
+
+                    try {
+                        await addDoc(collection(db, "mail"), {
+                            to: currentUser.email,
+                            source: '52_weeks_tracker',
+                            message: {
+                                subject: `Action Required: Week ${overdueWeek.week} Savings Overdue`,
+                                html: `
+                                    <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                                        <div style="text-align: center; padding: 20px 0;"><h1 style="margin: 0; color: #008f51; font-size: 24px;">My 52 WEEKS <span style="color: #000;">SAVING</span></h1><p style="margin: 5px 0 0; color: #666; font-size: 14px;">Tracker</p></div>
+                                        
+                                        <div style="background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+                                            <strong>Missed Deadline Alert</strong>
+                                        </div>
+
+                                        <h2 style="color: #d9534f;">Savings Overdue</h2>
+                                        <p>Hello ${state.fullName ? state.fullName.split(' ')[0] : 'there'},</p>
+                                        <p>We noticed that you haven't cleared your savings for <strong>Week ${overdueWeek.week}</strong>, which was due 3 days ago on ${formatDate(new Date(overdueWeek.rawEndDate))}.</p>
+                                        
+                                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; border-left: 4px solid #d9534f;">
+                                            <p style="margin: 0; font-size: 0.9rem; color: #666;">Outstanding Amount</p>
+                                            <p style="margin: 5px 0 0; font-size: 1.5rem; font-weight: bold; color: #d9534f;">${formatMoney(overdueWeek.netNeeded)}</p>
+                                        </div>
+
+                                        <p>Falling behind makes it harder to catch up later. Please log in today and update your tracker to stay on course for your yearly goal.</p>
+                                        
+                                        <div style="text-align: center; margin-top: 30px;">
+                                            <a href="https://princealextravel.firebaseapp.com" style="background-color: #008f51; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Update Dashboard</a>
+                                        </div>
+
+                                        <p style="font-size: 0.8em; color: #999; text-align: center; margin-top: 30px;">Powered by Prince Alex Digital</p>
+                                    </div>
+                                `
+                            }
+                        });
+                    } catch (e) { console.error("Overdue reminder error", e); }
+                }
+            }
+        }
+
+        async function checkMonthlySummary(ledger) {
+            if (!currentUser || !currentUser.email) return;
+
+            const today = new Date();
+            // Check previous month to send summary after month ends
+            const prevMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const year = prevMonthDate.getFullYear();
+            const month = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+            const prevMonthKey = `${year}-${month}`;
+            
+            const sent = state.monthlySummariesSent || [];
+            if (sent.includes(prevMonthKey)) return;
+
+            // Filter weeks ending in that month
+            const monthWeeks = ledger.filter(l => l.rawEndDate.startsWith(prevMonthKey));
+            
+            // If no weeks ended in that month (e.g. user started after), skip
+            if (monthWeeks.length === 0) return;
+
+            // Mark as sent immediately to prevent double processing while PDF generates
+            updateState({ monthlySummariesSent: [...sent, prevMonthKey] });
+
+            // Calculate stats
+            const savedThisMonth = monthWeeks.reduce((sum, w) => sum + w.paid, 0);
+            const totalSaved = ledger.reduce((sum, w) => sum + w.paid, 0);
+            const weeksCompleted = ledger.filter(l => l.isPaid).length;
+            const weeksRemaining = 52 - weeksCompleted;
+            const monthName = prevMonthDate.toLocaleString('default', { month: 'long' });
+
+            // Mark as sent
+            updateState({ monthlySummariesSent: [...sent, prevMonthKey] });
+            // --- Generate PDF ---
+            let pdfBase64 = null;
+            const userName = state.fullName || "Member";
+            
+            // Create hidden container
+            let container = document.createElement('div');
+            container.style.position = 'absolute';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.style.width = '800px';
+            document.body.appendChild(container);
+
+            try {
+                await addDoc(collection(db, "mail"), {
+                container.innerHTML = `
+                    <div style="font-family: Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white;">
+                        <div style="text-align: center; border-bottom: 2px solid #008f51; padding-bottom: 20px; margin-bottom: 30px;">
+                            <h1 style="color: #008f51; margin: 0; font-size: 28px;">Monthly Savings Report</h1>
+                            <p style="color: #666; margin: 5px 0; font-size: 16px;">${monthName} ${year}</p>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
+                            <div>
+                                <p style="font-size: 14px; color: #999; margin: 0;">Member Name</p>
+                                <p style="font-size: 18px; font-weight: bold; margin: 5px 0;">${userName}</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <p style="font-size: 14px; color: #999; margin: 0;">Generated On</p>
+                                <p style="font-size: 18px; font-weight: bold; margin: 5px 0;">${new Date().toLocaleDateString()}</p>
+                            </div>
+                        </div>
+
+                        <div style="background: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 40px; display: flex; justify-content: space-around; border: 1px solid #eee;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Saved This Month</div>
+                                <div style="font-size: 32px; font-weight: bold; color: #008f51; margin-top: 10px;">${formatMoney(savedThisMonth)}</div>
+                            </div>
+                            <div style="text-align: center; border-left: 1px solid #ddd; padding-left: 40px;">
+                                <div style="font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Total Balance</div>
+                                <div style="font-size: 32px; font-weight: bold; color: #333; margin-top: 10px;">${formatMoney(totalSaved)}</div>
+                            </div>
+                        </div>
+
+                        <h3 style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; color: #333;">Transaction History</h3>
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
+                            <thead>
+                                <tr style="background: #f1f1f1;">
+                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; color: #555;">Week</th>
+                                    <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd; color: #555;">Date Range</th>
+                                    <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd; color: #555;">Amount Paid</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${monthWeeks.map(w => `
+                                    <tr>
+                                        <td style="padding: 12px; border-bottom: 1px solid #eee;">Week ${w.week}</td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #eee;">${w.dates}</td>
+                                        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; color: ${w.paid > 0 ? '#008f51' : '#ccc'};">
+                                            ${w.paid > 0 ? formatMoney(w.paid) : '-'}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        
+                        <div style="text-align: center; margin-top: 50px; color: #999; font-size: 12px; border-top: 1px solid #eee; padding-top: 20px;">
+                            <p>This report was automatically generated by your 52 Weeks Saving Tracker.</p>
+                        </div>
+                    </div>
+                `;
+
+                const opt = {
+                    margin: 10,
+                    filename: `Savings_Report_${monthName}_${year}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                
+                const dataUri = await html2pdf().set(opt).from(container).output('datauristring');
+                pdfBase64 = dataUri.split(',')[1];
+            } catch (err) {
+                console.error("PDF Generation failed", err);
+            } finally {
+                if(document.body.contains(container)) document.body.removeChild(container);
+            }
+
+            try {
+                const mailData = {
+                    to: currentUser.email,
+                    source: '52_weeks_tracker',
+                    message: {
+                        subject: `📊 Your ${monthName} Savings Summary`,
+                        html: `
+                            <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                                <div style="text-align: center; padding: 20px 0;"><h1 style="margin: 0; color: #008f51; font-size: 24px;">My 52 WEEKS <span style="color: #000;">SAVING</span></h1><p style="margin: 5px 0 0; color: #666; font-size: 14px;">Tracker</p></div>
+                                
+                                <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px;">
+                                    <h2 style="margin: 0 0 10px 0; color: #333;">${monthName} Recap</h2>
+                                    <p style="margin: 0; color: #666;">Here is your progress for the last month.</p>
+                                    <p style="margin: 0; color: #666;">Here is your progress for the last month. We've attached a detailed PDF report for your records.</p>
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                                    <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; text-align: center;">
+                                        <div style="font-size: 12px; color: #666; text-transform: uppercase;">Saved This Month</div>
+                                        <div style="font-size: 20px; font-weight: bold; color: #008f51;">${formatMoney(savedThisMonth)}</div>
+                                    </div>
+                                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; text-align: center;">
+                                        <div style="font-size: 12px; color: #666; text-transform: uppercase;">Total Saved</div>
+                                        <div style="font-size: 20px; font-weight: bold; color: #856404;">${formatMoney(totalSaved)}</div>
+                                    </div>
+                                </div>
+
+                                <div style="border-top: 1px solid #eee; border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; margin-bottom: 20px;">
+                                    <div style="text-align: center; flex: 1;">
+                                        <div style="font-size: 24px;">✅</div>
+                                        <div style="font-weight: bold; margin-top: 5px;">${weeksCompleted} Weeks</div>
+                                        <div style="font-size: 12px; color: #999;">Completed</div>
+                                    </div>
+                                    <div style="text-align: center; flex: 1; border-left: 1px solid #eee;">
+                                        <div style="font-size: 24px;">🚀</div>
+                                        <div style="font-weight: bold; margin-top: 5px;">${weeksRemaining} Weeks</div>
+                                        <div style="font-size: 12px; color: #999;">Remaining</div>
+                                    </div>
+                                </div>
+
+                                <p style="text-align: center; font-style: italic; color: #555;">
+                                    "Do not save what is left after spending, but spend what is left after saving."
+                                </p>
+
+                                <div style="text-align: center; margin-top: 30px;">
+                                    <a href="https://princealextravel.firebaseapp.com" style="background-color: #008f51; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Dashboard</a>
+                                </div>
+                                
+                                <p style="font-size: 0.8em; color: #999; text-align: center; margin-top: 30px;">Powered by Prince Alex Digital</p>
+                            </div>
+                        `
+                    }
+                });
+                };
+
+                if (pdfBase64) {
+                    mailData.message.attachments = [{
+                        filename: `Savings_Report_${monthName}_${year}.pdf`,
+                        content: pdfBase64,
+                        encoding: 'base64'
+                    }];
+                }
+
+                await addDoc(collection(db, "mail"), mailData);
+            } catch (e) { console.error("Monthly summary error", e); }
+        }
+
+        async function checkTipsEmail(ledger) {
+            if (!currentUser || !currentUser.email) return;
+
+            const today = new Date();
+            // Send around mid-month (15th) to space out from monthly summary
+            if (today.getDate() < 15) return; 
+
+            const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+            const sent = state.tipsSent || [];
+            
+            if (sent.includes(currentMonthKey)) return;
+
+            // Determine context (Behind or On Track)
+            const start = new Date(state.startDate);
+            const diffTime = today - start;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            let currentWeekNum = Math.floor(diffDays / 7) + 1;
+            if (currentWeekNum > 52) currentWeekNum = 52;
+
+            // Check if paid up to current week (allow 1 week grace)
+            const weeksCompleted = ledger.filter(l => l.isPaid).length;
+            const isBehind = weeksCompleted < (currentWeekNum - 1);
+
+            let selectedTip;
+
+            if (isBehind) {
+                selectedTip = {
+                    subject: "💡 Tip: How to Catch Up Painlessly",
+                    body: "We noticed you might be a few weeks behind. Don't worry! Instead of trying to pay it all at once, try adding just 10-20% extra to your current week's payment. You'll clear the backlog without breaking the bank."
+                };
+            } else {
+                // General Tips Rotation
+                const tips = [
+                    {
+                        subject: "💡 Tip: The 50/30/20 Rule",
+                        body: "A popular budgeting rule: 50% for needs, 30% for wants, and 20% for savings. You are already nailing the savings part! Try auditing your 'wants' this week to boost your progress."
+                    },
+                    {
+                        subject: "💡 Tip: Automate Your Savings",
+                        body: "Consistency is key. If your banking app supports it, set up a standing order to move your weekly increment automatically. It removes the temptation to spend it!"
+                    },
+                    {
+                        subject: "💡 Tip: The 'No Spend' Challenge",
+                        body: "Try a 'No Spend Weekend'. Commit to spending $0 on non-essentials for just two days. Put whatever you would have spent directly into your 52-week tracker."
+                    },
+                    {
+                        subject: "💡 Tip: Visual Motivation",
+                        body: "Print out your savings goal (e.g., a picture of that vacation or gadget) and stick it on your fridge. Visual reminders help you say 'no' to impulse buys."
+                    },
+                    {
+                        subject: "💡 Tip: Review Subscriptions",
+                        body: "Check your bank statement for subscriptions you don't use anymore. Streaming services, gym memberships, or apps. Cancel one and redirect that cash here."
+                    }
+                ];
+                const tipIndex = today.getMonth() % tips.length;
+                selectedTip = tips[tipIndex];
+            }
+
+            // Mark as sent
+            updateState({ tipsSent: [...sent, currentMonthKey] });
+
+            try {
+                await addDoc(collection(db, "mail"), {
+                    to: currentUser.email,
+                    source: '52_weeks_tracker',
+                    message: {
+                        subject: selectedTip.subject,
+                        html: `
+                            <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                                <div style="text-align: center; padding: 20px 0;"><h1 style="margin: 0; color: #008f51; font-size: 24px;">My 52 WEEKS <span style="color: #000;">SAVING</span></h1><p style="margin: 5px 0 0; color: #666; font-size: 14px;">Tracker</p></div>
+                                
+                                <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; border-radius: 4px; margin-bottom: 20px;">
+                                    <h2 style="margin: 0 0 10px 0; color: #0d47a1; font-size: 18px;">Monthly Savings Insight</h2>
+                                    <p style="margin: 0; font-size: 16px;">${selectedTip.body}</p>
+                                </div>
+
+                                <p>Small adjustments in your daily habits can lead to massive results over 52 weeks. Keep going!</p>
+
+                                <div style="text-align: center; margin-top: 30px;">
+                                    <a href="https://princealextravel.firebaseapp.com" style="background-color: #008f51; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Go to Dashboard</a>
+                                </div>
+                                
+                                <p style="font-size: 0.8em; color: #999; text-align: center; margin-top: 30px;">Powered by Prince Alex Digital</p>
+                            </div>
+                        `
+                    }
+                });
+            } catch (e) { console.error("Tips email error", e); }
+        }
+
+        async function checkMilestones(weeksCompleted, totalSaved) {
+            if (!currentUser || !currentUser.email) return;
+
+            const milestones = {
+                4: {
+                    subject: "🔥 You're on fire! First Month Complete",
+                    body: "You've completed your first 4 weeks! Building a habit is the hardest part, and you've nailed it. Keep this momentum going!"
+                },
+                13: {
+                    subject: "🚀 25% Done - You are different!",
+                    body: "You’re 25% done with the challenge. Statistics show most people quit before this point, but you are still here. That sets you apart."
+                },
+                26: {
+                    subject: "🎉 Halfway There! 50% Complete",
+                    body: "You have officially crossed the 50% mark! The finish line is closer than the start line now."
+                },
+                39: {
+                    subject: "🏁 The Home Stretch - 75% Complete",
+                    body: "Only 13 weeks left! You are 75% of the way to your goal. Now is the time to stay focused and finish strong."
+                }
+            };
+
+            if (milestones[weeksCompleted]) {
+                const sent = state.milestonesSent || [];
+                if (!sent.includes(weeksCompleted)) {
+                    updateState({ milestonesSent: [...sent, weeksCompleted] });
+
+                    try {
+                        await addDoc(collection(db, "mail"), {
+                            to: currentUser.email,
+                            source: '52_weeks_tracker',
+                            message: {
+                                subject: milestones[weeksCompleted].subject,
+                                html: `
+                                    <div style="font-family: Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+                                        <div style="text-align: center; padding: 20px 0;"><h1 style="margin: 0; color: #008f51; font-size: 24px;">My 52 WEEKS <span style="color: #000;">SAVING</span></h1><p style="margin: 5px 0 0; color: #666; font-size: 14px;">Tracker</p></div>
+                                        
+                                        <div style="text-align: center; margin: 30px 0;">
+                                            <div style="font-size: 48px;">🎯</div>
+                                            <h2 style="color: #008f51; font-size: 24px; margin: 10px 0;">Milestone Unlocked!</h2>
+                                            <p style="font-size: 18px; font-weight: bold;">Week ${weeksCompleted} Complete</p>
+                                        </div>
+
+                                        <div style="background: #e8f5e9; padding: 25px; border-radius: 12px; text-align: center; border: 1px solid #c8e6c9;">
+                                            <p style="margin: 0; font-size: 16px; color: #2e7d32;">${milestones[weeksCompleted].body}</p>
+                                        </div>
+
+                                        <div style="text-align: center; margin-top: 30px;">
+                                            <p style="color: #666; font-size: 14px;">Total Saved So Far</p>
+                                            <p style="font-size: 24px; font-weight: bold; color: #333; margin: 5px 0;">${formatMoney(totalSaved)}</p>
+                                        </div>
+
+                                        <div style="text-align: center; margin-top: 30px;">
+                                            <a href="https://princealextravel.firebaseapp.com" style="background-color: #008f51; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Dashboard</a>
+                                        </div>
+                                        
+                                        <p style="font-size: 0.8em; color: #999; text-align: center; margin-top: 30px;">Powered by Prince Alex Digital</p>
+                                    </div>
+                                `
+                            }
+                        });
+                    } catch (e) { console.error("Milestone email error", e); }
+                }
+            }
         }
 
         async function checkCompletion(weeksCompleted, totalSaved) {
             if (!currentUser || !currentUser.email) return;
 
             if (weeksCompleted === 52 && !state.congratsSent) {
-                state.congratsSent = true;
-                saveState();
+                updateState({ congratsSent: true });
 
                 try {
                     await addDoc(collection(db, "mail"), {
@@ -985,10 +1459,12 @@
             document.getElementById('dispPersonalGoal').textContent = state.yearlyGoal ? formatMoney(Number(state.yearlyGoal)) : 'Not Set';
 
             // Calculate Ledger
-            const ledger = calculateLedger();
+            const ledger = getLedger();
 
             // Check for Reminders
             checkReminders(ledger).catch(err => console.error("Error in reminders:", err));
+            checkMonthlySummary(ledger).catch(err => console.error("Error in monthly summary:", err));
+            checkTipsEmail(ledger).catch(err => console.error("Error in tips email:", err));
 
             // 1. Update Cards
             // Arithmetic Series Sum: n/2 * (2a + (n-1)d)
@@ -1007,6 +1483,7 @@
 
             // Check for Completion
             checkCompletion(weeksCompleted, totalSaved).catch(err => console.error("Error in completion check:", err));
+            checkMilestones(weeksCompleted, totalSaved).catch(err => console.error("Error in milestone check:", err));
 
             // 3. Progress Bar
             const pct = (weeksCompleted / 52) * 100;
@@ -1014,6 +1491,12 @@
             bar.style.width = `${pct}%`;
             bar.textContent = pct > 10 ? `${Math.round(pct)}%` : '';
             document.getElementById('progressText').textContent = `${Math.round(pct)}%`;
+
+            // 4. Charts
+            const chartData = getChartData(ledger);
+            renderLineChart(chartData);
+            renderBarChart(chartData);
+            renderDoughnut(weeksCompleted);
 
             // 4. Update Action Card (Active Week)
             // Find first week where balanceAfter < 0 (deficit) OR first week generally if all paid
@@ -1051,7 +1534,7 @@
                 if (targetIndex > 51) targetIndex = 51;
                 const catchUpAmount = ledger[targetIndex].netNeeded - ledger[targetIndex].paid;
                 
-                statusEl.innerHTML = `<div class="status-icon">⚠️</div><div class="status-text"><strong>Catch Up Needed</strong><span>We are in Week ${temporalWeek}. Pay <strong>${formatMoney(catchUpAmount)}</strong> to backfill passed weeks.</span></div>`;
+                statusEl.innerHTML = `<div class="status-icon">⚠️</div><div class="status-text"><strong>Catch Up Needed</strong><span>We are in Week ${temporalWeek}. Pay <strong>${formatMoney(catchUpAmount)}</strong> to backfill passed weeks and clear current week.</span></div>`;
                 statusEl.classList.add('warning');
             } else {
                 // On track (Current week)
@@ -1135,9 +1618,8 @@
 
         // --- Logic & Helpers ---
         function setIncrement(val) {
-            state.increment = parseInt(val);
             document.getElementById('customIncrement').value = ''; // Clear custom if preset chosen
-            saveState();
+            updateState({ increment: parseInt(val) });
         }
         window.setIncrement = setIncrement; // Expose to global
 
@@ -1145,9 +1627,8 @@
             const select = document.getElementById('incrementDropdown');
             const val = parseInt(select.value);
             if (val && val > 0) {
-                state.increment = val;
                 document.getElementById('customIncrement').value = ''; // Clear custom
-                saveState();
+                updateState({ increment: val });
                 showMessage('success', 'Settings Updated', `Weekly increment set to ${formatMoney(val)}`);
             }
         }
@@ -1171,8 +1652,9 @@
             
             if(week && !isNaN(amount) && amount > 0) {
                 const processPayment = () => {
-                    state.payments[week] = (state.payments[week] || 0) + amount;
-                    saveState();
+                    const newPayments = { ...state.payments };
+                    newPayments[week] = (newPayments[week] || 0) + amount;
+                    updateState({ payments: newPayments });
                     input.value = ''; // Clear input
                     showMessage('success', 'Transaction Saved', `Successfully saved ${formatMoney(amount)} for Week ${week}.`);
                 };
@@ -1186,6 +1668,118 @@
             }
         }
         window.saveCurrentPayment = saveCurrentPayment;
+
+        // --- Chart Functions ---
+        function getChartData(ledger) {
+            let cumulative = 0;
+            return {
+                labels: ledger.map(w => `W${w.week}`),
+                savedTrend: ledger.map(w => {
+                    cumulative += w.paid;
+                    return cumulative;
+                }),
+                weeklyTarget: ledger.map(w => w.baseTarget), 
+                weeklyPaid: ledger.map(w => w.paid)
+            };
+        }
+
+        function renderLineChart(data) {
+            const ctx = document.getElementById('savingsLineChart');
+            if (!ctx) return;
+
+            if (lineChart) lineChart.destroy();
+
+            lineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Total Saved',
+                        data: data.savedTrend,
+                        borderColor: '#008f51',
+                        backgroundColor: 'rgba(0, 143, 81, 0.1)',
+                        tension: 0.3,
+                        fill: true,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+                        x: { grid: { display: false } }
+                    },
+                    interaction: { intersect: false, mode: 'index' }
+                }
+            });
+        }
+
+        function renderBarChart(data) {
+            const ctx = document.getElementById('weeklyBarChart');
+            if (!ctx) return;
+
+            if (barChart) barChart.destroy();
+
+            // Showing first 12 weeks as requested to avoid clutter
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels.slice(0, 12),
+                    datasets: [
+                        {
+                            label: 'Target',
+                            data: data.weeklyTarget.slice(0, 12),
+                            backgroundColor: '#e0e0e0',
+                            borderRadius: 2
+                        },
+                        {
+                            label: 'Paid',
+                            data: data.weeklyPaid.slice(0, 12),
+                            backgroundColor: '#008f51',
+                            borderRadius: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { display: false } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderDoughnut(weeksCompleted) {
+            const ctx = document.getElementById('progressDoughnut');
+            if (!ctx) return;
+
+            if (doughnutChart) doughnutChart.destroy();
+
+            doughnutChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'Remaining'],
+                    datasets: [{
+                        data: [weeksCompleted, 52 - weeksCompleted],
+                        backgroundColor: ['#008f51', '#e0e0e0'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '75%',
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
 
         function exportPDF(btnElement) {
             const btn = btnElement || document.querySelector('button[onclick="exportPDF()"]');
@@ -1278,6 +1872,90 @@
             });
         }
         window.exportPDF = exportPDF;
+
+        // --- Notifications Logic ---
+        async function checkNotificationStatus() {
+            if (!("Notification" in window)) {
+                const btn = document.getElementById('notifyBtn');
+                if(btn) btn.style.display = 'none';
+                return;
+            }
+            if (Notification.permission === 'granted') {
+                const btn = document.getElementById('notifyBtn');
+                if(btn) btn.classList.add('active');
+                
+                try {
+                    onMessage(messaging, (payload) => {
+                        // Foreground notification
+                        showMessage('success', payload.notification.title, payload.notification.body);
+                    });
+                } catch(e) { console.log("Messaging init error", e); }
+            }
+        }
+
+        async function toggleNotifications() {
+            if (!currentUser) {
+                showMessage('error', 'Login Required', 'Please log in to enable notifications.');
+                return;
+            }
+
+            const btn = document.getElementById('notifyBtn');
+            
+            if (Notification.permission === 'granted') {
+                showMessage('success', 'Notifications Active', 'You are already set up to receive reminders.');
+                return;
+            }
+
+            // Show benefits modal before requesting
+            const benefitsHtml = `
+                <p style="margin-bottom: 15px;">Stay on track with your savings goals! We'll send you:</p>
+                <ul style="text-align: left; margin: 0 0 15px 10px; list-style: none;">
+                    <li style="margin-bottom: 8px;">⏰ <strong>Weekly saving reminders</strong></li>
+                    <li style="margin-bottom: 8px;">⚠️ <strong>Overdue alerts</strong></li>
+                    <li style="margin-bottom: 8px;">🎉 <strong>Completion congratulations</strong></li>
+                    <li style="margin-bottom: 8px;">🔄 <strong>Inactive user nudges</strong></li>
+                </ul>
+                <p style="font-size: 0.9rem; color: #666;">You'll get updates even when the app is closed.</p>
+            `;
+
+            showConfirm('Enable Notifications?', benefitsHtml, async () => {
+                btn.disabled = true;
+                const originalContent = btn.innerHTML;
+                btn.innerHTML = '⏳';
+
+                try {
+                    const permission = await Notification.requestPermission();
+                    if (permission === 'granted') {
+                        // Attempt to get token (Requires firebase-messaging-sw.js in root)
+                        const token = await getToken(messaging);
+                        
+                        if (token) {
+                            await updateDoc(doc(db, "savings_trackers", currentUser.uid), {
+                                fcmToken: token,
+                                notificationsEnabled: true
+                            });
+                            btn.classList.add('active');
+                            showMessage('success', 'Notifications Enabled', 'You will now receive weekly reminders and updates!');
+                        }
+                    } else {
+                        showMessage('error', 'Permission Denied', 'We cannot send notifications without your permission.');
+                    }
+                } catch (err) {
+                    console.error("Notification Error:", err);
+                    showMessage('error', 'Setup Failed', 'Could not enable notifications. Ensure you are using HTTPS/Localhost and have the service worker file.');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalContent;
+                }
+            });
+            
+            // Update button text
+            setTimeout(() => {
+                const confirmBtn = document.getElementById('msgBtn');
+                if(confirmBtn) confirmBtn.textContent = "Allow Notifications";
+            }, 50);
+        }
+        window.toggleNotifications = toggleNotifications;
 
         // --- Chat Logic ---
         let typingTimeout = null;
@@ -1457,7 +2135,7 @@
             }
 
             titleEl.textContent = title;
-            bodyEl.textContent = body;
+            bodyEl.innerHTML = body;
 
             btn.onclick = () => {
                 overlay.classList.add('hidden');
@@ -1479,7 +2157,7 @@
             icon.textContent = '⚠️';
 
             titleEl.textContent = title;
-            bodyEl.textContent = body;
+            bodyEl.innerHTML = body;
 
             cancelBtn.style.display = 'block';
             btn.textContent = 'Continue';
@@ -1602,8 +2280,7 @@
                         }
                     });
 
-                    state = { ...state, ...userData };
-                    updateDashboard();
+                    updateState(userData);
                     showMessage('success', 'Account Created!', `Welcome to the challenge, ${name.split(' ')[0]}! We've sent a welcome email to ${email}.`);
                 } catch (err) {
                     showMessage('error', 'Registration Failed', getFriendlyErrorMessage(err));
@@ -1632,15 +2309,13 @@
             customInput.addEventListener('input', (e) => {
                 const val = parseInt(e.target.value);
                 if (val && val > 0) {
-                    state.increment = val;
-                    saveState();
+                    updateState({ increment: val });
                 }
             });
 
             // Start Date
             document.getElementById('startDate').addEventListener('change', (e) => {
-                state.startDate = e.target.value;
-                saveState();
+                updateState({ startDate: e.target.value });
             });
 
             // Mobile Menu
