@@ -628,9 +628,6 @@
                 <p style="font-size: 0.85rem; color: #666; letter-spacing: 2px; text-transform: uppercase; margin-top: 5px;">Tracker</p>
             </div>
 
-            <div style="background-color: #fff3cd; color: #856404; padding: 12px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 20px; border: 1px solid #ffeeba; line-height: 1.4; text-align: left;">
-                <strong>
-
             <div class="auth-header">
                 <h2 id="formTitle">Welcome Back</h2>
                 <p>Sign in to track your savings</p>
@@ -1095,7 +1092,6 @@
             document.body.appendChild(container);
 
             try {
-                await addDoc(collection(db, "mail"), {
                 container.innerHTML = `
                     <div style="font-family: Helvetica, Arial, sans-serif; padding: 40px; color: #333; background: white;">
                         <div style="text-align: center; border-bottom: 2px solid #008f51; padding-bottom: 20px; margin-bottom: 30px;">
@@ -1221,7 +1217,6 @@
                             </div>
                         `
                     }
-                });
                 };
 
                 if (pdfBase64) {
